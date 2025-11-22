@@ -26,12 +26,17 @@ stdenv.mkDerivation {
     mkdir -p $out/share/ax-shell
     cp -r ./* $out/share/ax-shell/
 
-    makeWrapper ${ax-shell-python}/bin/python $out/bin/ax-shell \
+    mkdir -p $out/bin
+    makeWrapper ${ax-shell-python}/bin/python $out/bin/.ax-shell-unwrapped \
       --prefix PYTHONPATH : "$out/share/ax-shell" \
       --prefix PATH : "${ax-shell-python}/bin" \
       --add-flags "-m main"
 
     runHook postInstall;
+  '';
+
+  postInstall = ''
+    makeWrapper $out/bin/.ax-shell-unwrapped $out/bin/ax-shell
   '';
 
   preFixup = ''
@@ -40,6 +45,7 @@ stdenv.mkDerivation {
     gappsWrapperArgs+=(--prefix PATH : "${lib.makeBinPath runtimeDeps}");
     gappsWrapperArgs+=(--prefix XDG_DATA_DIRS : "${tabler-icons-font}/share");
     gappsWrapperArgs+=(--prefix XDG_DATA_DIRS : "${adwaita-icon-theme}/share");
+    gappsWrapperArgs+=(--prefix GI_TYPELIB_PATH : "${gtk3}/lib/girepository-1.0");
   '';
 
   meta = {
