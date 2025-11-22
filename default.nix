@@ -8,6 +8,8 @@
   pkg-config,
   makeWrapper,
   gtk3,
+  glib,
+  gobject-introspection,
   adwaita-icon-theme,
   tabler-icons-font,
 }:
@@ -16,8 +18,8 @@ stdenv.mkDerivation {
   version = "unstable-${self.shortRev or "dirty"}";
   src = self;
 
-  nativeBuildInputs = [ wrapGAppsHook3 pkg-config makeWrapper gtk3 ];
-  buildInputs = [ ax-shell-python tabler-icons-font ] ++ runtimeDeps;
+  nativeBuildInputs = [ wrapGAppsHook3 pkg-config makeWrapper ];
+  buildInputs = [ ax-shell-python gtk3 glib gobject-introspection tabler-icons-font ] ++ runtimeDeps;
   dontWrapQtApps = true;
 
   installPhase = ''
@@ -45,7 +47,6 @@ stdenv.mkDerivation {
     gappsWrapperArgs+=(--prefix PATH : "${lib.makeBinPath runtimeDeps}");
     gappsWrapperArgs+=(--prefix XDG_DATA_DIRS : "${tabler-icons-font}/share");
     gappsWrapperArgs+=(--prefix XDG_DATA_DIRS : "${adwaita-icon-theme}/share");
-    gappsWrapperArgs+=(--prefix GI_TYPELIB_PATH : "${gtk3}/lib/girepository-1.0");
   '';
 
   meta = {
