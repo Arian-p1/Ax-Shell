@@ -49,26 +49,15 @@
 
         ax-shell-python-packages =
           ps:
-          let
-            ps_ = ps.override {
-              overrides = self: super: {
-                pygobject3 = pkgs.callPackage ./nix/pkgs/pygobject.nix {
-                  inherit python;
-                  buildPythonPackage = pkgs.python312Packages.buildPythonPackage;
-                  pycairo = pkgs.python312Packages.pycairo;
-                };
-              };
-            };
-          in
           [
-            (ps_.buildPythonPackage {
+            (ps.buildPythonPackage {
               pname = "fabric-gtk";
               version = "unstable-${self.shortRev or "dirty"}";
               src = inputs.fabric-gtk;
               format = "pyproject";
               nativeBuildInputs = [
-                ps_.setuptools
-                ps_.wheel
+                ps.setuptools
+                ps.wheel
               ]
               ++ (with pkgs; [
                 cairo
@@ -77,22 +66,22 @@
                 pkg-config
               ]);
               propagatedBuildInputs = [
-                ps_.click
-                ps_.loguru
-                ps_.pycairo
-                ps_.pygobject3
+                ps.click
+                ps.loguru
+                ps.pycairo
+                ps.pygobject3
               ];
             })
-            ps_.dbus-python
-            ps_.ijson
-            ps_.numpy
-            ps_.pillow
-            ps_.psutil
-            ps_.pywayland
-            ps_.requests
-            ps_.setproctitle
-            ps_.toml
-            ps_.watchdog
+            ps.dbus-python
+            ps.ijson
+            ps.numpy
+            ps.pillow
+            ps.psutil
+            ps.pywayland
+            ps.requests
+            ps.setproctitle
+            ps.toml
+            ps.watchdog
           ];
 
         ax-shell-python = python.withPackages ax-shell-python-packages;
