@@ -130,7 +130,6 @@
           cinnamon-desktop
           gnome-bluetooth
           inputs.fabric-cli.packages.${system}.default
-          inputs.gray.packages.${system}.default
           glib
           gobject-introspection
           gtk-layer-shell
@@ -170,6 +169,7 @@
         ] ++ lib.optionals (system == "x86_64-linux") [
           # nvtop might not be available or functional on all architectures
           nvtopPackages.full
+          inputs.gray.packages.${system}.default
         ];
 
         ax-shell-pkg = pkgs.callPackage ./default.nix {
