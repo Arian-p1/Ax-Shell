@@ -1,26 +1,40 @@
-import gi
-
-gi.require_version("Gray", "0.1")
 import logging
 
-from fabric.widgets.box import Box
-from gi.repository import Gdk, GdkPixbuf, GLib, Gray, Gtk
-
 import config.data as data
+import gi
+from fabric.widgets.box import Box
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 
 logger = logging.getLogger(__name__)
 
+try:
+    gi.require_version("Gray", "0.1")
+    from gi.repository import Gray
+
+    GRAY_AVAILABLE = True
+except (ValueError, ImportError):
+    GRAY_AVAILABLE = False
+    Gray = None
+
+
 class SystemTray(Box):
-    def __init__(self, pixel_size: int = 20, refresh_interval: int = 1, **kwargs) -> None:
-        orientation = Gtk.Orientation.HORIZONTAL if not data.VERTICAL else Gtk.Orientation.VERTICAL
-        super().__init__(
-            name="systray",
-            orientation=orientation,
-            spacing=8,
-            **kwargs
+    def __init__(
+        self, pixel_size: int = 20, refresh_interval: int = 1, **kwargs
+    ) -> None:
+        orientation = (
+            Gtk.Orientation.HORIZONTAL
+            if not data.VERTICAL
+            else Gtk.Orientation.VERTICAL
         )
+        super().__init__(name="systray", orientation=orientation, spacing=8, **kwargs)
         self.enabled = True
         super().set_visible(False)
+
+        if not GRAY_AVAILABLE:
+            logger.warning("System tray not available: Gray library not found.")
+            self.enabled = False
+            return
+
         self.pixel_size = pixel_size
         self.refresh_interval = refresh_interval
 
@@ -51,7 +65,9 @@ class SystemTray(Box):
             path = item.get_icon_theme_path()
             if path:
                 theme.prepend_search_path(path)
-            return theme.load_icon(name, self.pixel_size, Gtk.IconLookupFlags.FORCE_SIZE)
+            return theme.load_icon(
+                name, self.pixel_size, Gtk.IconLookupFlags.FORCE_SIZE
+            )
         except GLib.Error as e:
             logger.debug(f"Icon load error {e}")
             return Gtk.IconTheme.get_default().load_icon(
@@ -68,9 +84,9 @@ class SystemTray(Box):
             button.set_image(new)
             new.show()
         tip = None
-        if hasattr(item, 'get_tooltip_text'):
+        if hasattr(item, "get_tooltip_text"):
             tip = item.get_tooltip_text()
-        elif hasattr(item, 'get_title'):
+        elif hasattr(item, "get_title"):
             tip = item.get_title()
         if tip:
             button.set_tooltip_text(tip)
@@ -78,7 +94,6 @@ class SystemTray(Box):
             button.set_has_tooltip(False)
 
     def _refresh_all_items(self) -> bool:
-
         for ident, item in self.items_by_id.items():
             btn = self.buttons_by_id.get(ident)
             if btn:
@@ -99,17 +114,25 @@ class SystemTray(Box):
         self.buttons_by_id[identifier] = btn
         self.items_by_id[identifier] = item
 
-        item.connect("notify::icon-pixmaps",
-                     lambda itm, pspec: self._refresh_item_ui(identifier, itm, btn))
-        item.connect("notify::icon-name",
-                     lambda itm, pspec: self._refresh_item_ui(identifier, itm, btn))
+        item.connect(
+            "notify::icon-pixmaps",
+            lambda itm, pspec: self._refresh_item_ui(identifier, itm, btn),
+        )
+        item.connect(
+            "notify::icon-name",
+            lambda itm, pspec: self._refresh_item_ui(identifier, itm, btn),
+        )
 
         try:
-            item.connect("updated", lambda itm: self._refresh_item_ui(identifier, itm, btn))
+            item.connect(
+                "updated", lambda itm: self._refresh_item_ui(identifier, itm, btn)
+            )
         except TypeError:
             pass
 
-        item.connect("removed", lambda itm: self.on_item_instance_removed(identifier, itm))
+        item.connect(
+            "removed", lambda itm: self.on_item_instance_removed(identifier, itm)
+        )
 
         self.add(btn)
         btn.show_all()
@@ -120,7 +143,11 @@ class SystemTray(Box):
         btn.connect("button-press-event", lambda b, e: self.on_button_click(b, item, e))
         img = Gtk.Image.new_from_pixbuf(self._get_item_pixbuf(item))
         btn.set_image(img)
-        tip = item.get_tooltip_text() if hasattr(item, 'get_tooltip_text') else getattr(item, 'get_title', lambda: None)()
+        tip = (
+            item.get_tooltip_text()
+            if hasattr(item, "get_tooltip_text")
+            else getattr(item, "get_title", lambda: None)()
+        )
         if tip:
             btn.set_tooltip_text(tip)
         return btn
@@ -133,19 +160,22 @@ class SystemTray(Box):
                 btn.destroy()
             self._update_visibility()
 
-    def on_button_click(self, button: Gtk.Button, item: Gray.Item, event: Gdk.EventButton):
+    def on_button_click(
+        self, button: Gtk.Button, item: Gray.Item, event: Gdk.EventButton
+    ):
         if event.button == Gdk.BUTTON_PRIMARY:
             try:
                 item.activate(int(event.x_root), int(event.y_root))
             except Exception as e:
                 logger.error(f"Activate error: {e}")
         elif event.button == Gdk.BUTTON_SECONDARY:
-            menu = getattr(item, 'get_menu', lambda: None)()
+            menu = getattr(item, "get_menu", lambda: None)()
             if isinstance(menu, Gtk.Menu):
-                menu.popup_at_widget(button, Gdk.Gravity.SOUTH_WEST,
-                                     Gdk.Gravity.NORTH_WEST, event)
+                menu.popup_at_widget(
+                    button, Gdk.Gravity.SOUTH_WEST, Gdk.Gravity.NORTH_WEST, event
+                )
             else:
-                cm = getattr(item, 'context_menu', None)
+                cm = getattr(item, "context_menu", None)
                 if cm:
                     try:
                         cm(int(event.x_root), int(event.y_root))
