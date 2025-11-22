@@ -4,6 +4,7 @@ import platform
 import subprocess
 import time
 
+import config.data as data
 import psutil
 from fabric.core.fabricator import Fabricator
 from fabric.utils.helpers import invoke_repeater
@@ -16,11 +17,10 @@ from fabric.widgets.overlay import Overlay
 from fabric.widgets.revealer import Revealer
 from fabric.widgets.scale import Scale
 from gi.repository import GLib
+from services.network import NetworkClient
 
-import config.data as data
 import modules.icons as icons
 from modules.upower.upower import UPowerManager
-from services.network import NetworkClient
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,7 @@ class MetricsProvider:
     def _update(self):
         self.cpu = psutil.cpu_percent(interval=0)
         self.mem = psutil.virtual_memory().percent
-        self.disk = [
-            psutil.disk_usage(path).percent for path in data.BAR_METRICS_DISKS
-        ]
+        self.disk = [psutil.disk_usage(path).percent for path in data.BAR_METRICS_DISKS]
 
         if not self._gpu_update_running:
             self._start_gpu_update_async()
@@ -212,7 +210,9 @@ class Metrics(Box):
         )
 
         visible = getattr(
-            data, "METRICS_VISIBLE", {"cpu": True, "ram": True, "disk": True, "gpu": True}
+            data,
+            "METRICS_VISIBLE",
+            {"cpu": True, "ram": True, "disk": True, "gpu": True},
         )
         disks = (
             [
@@ -242,7 +242,9 @@ class Metrics(Box):
         )
 
         self.cpu = (
-            SingularMetric("cpu", "CPU", icons.cpu) if visible.get("cpu", True) else None
+            SingularMetric("cpu", "CPU", icons.cpu)
+            if visible.get("cpu", True)
+            else None
         )
         self.ram = (
             SingularMetric("ram", "RAM", icons.memory)
@@ -616,8 +618,9 @@ class Battery(Button):
             charging_status = f"{icons.bat_low} Low Battery - {time_status} left"
         elif charging == False:
             self.bat_icon.set_markup(icons.discharging)
-            charging_status =
+            charging_status = (
                 f"{icons.bat_discharging} Discharging - {time_status} left"
+            )
         else:
             self.bat_icon.set_markup(icons.battery)
             charging_status = "Battery"
@@ -766,9 +769,7 @@ class NetworkApplet(Button):
             else:
                 self.wifi_label.set_markup(icons.world_off)
                 tooltip_base = "Disconnected"
-                tooltip_vertical = (
-                    f"SSID: Disconnected\nUpload: {upload_str}\nDownload: {download_str}"
-                )
+                tooltip_vertical = f"SSID: Disconnected\nUpload: {upload_str}\nDownload: {download_str}"
         else:
             self.wifi_label.set_markup(icons.world_off)
             tooltip_base = "Disconnected"
