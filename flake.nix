@@ -21,7 +21,10 @@
       ...
     }@inputs:
     let
-      supportedSystems = [ "x86_64-linux" ];
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
     in
     flake-utils.lib.eachSystem supportedSystems (
       system:
@@ -152,7 +155,6 @@
           imagemagick
           matugen
           networkmanager
-          nvtopPackages.full
           playerctl
           procps
           swappy
@@ -165,6 +167,9 @@
           wlinhibit
           ax-shell-inhibit-pkg
           ax-send
+        ] ++ lib.optionals (system == "x86_64-linux") [
+          # nvtop might not be available or functional on all architectures
+          nvtopPackages.full
         ];
 
         ax-shell-pkg = pkgs.callPackage ./default.nix {
