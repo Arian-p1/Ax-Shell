@@ -155,10 +155,10 @@
           wlinhibit
           ax-shell-inhibit-pkg
           ax-send
+          inputs.gray.packages.${system}.default
         ] ++ lib.optionals (system == "x86_64-linux") [
           # nvtop might not be available or functional on all architectures
           nvtopPackages.full
-          inputs.gray.packages.${system}.default
         ];
 
         ax-shell-pkg = pkgs.callPackage ./default.nix {
