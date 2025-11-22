@@ -8,7 +8,7 @@ from fabric.widgets.widget import Widget
 from loguru import logger
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GdkPixbuf, Gtk  # noqa: E402
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk  # noqa: E402
 
 
 class CircleImage(Gtk.DrawingArea, Widget):
