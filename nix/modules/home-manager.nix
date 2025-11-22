@@ -522,7 +522,7 @@ in
         [
           "swww-daemon"
           "${scripts.themeInit}"
-          "${binaries.uwsm} -- ${scripts.runner}/bin/ax-shell-run"
+          "${scripts.runner}/bin/ax-shell-run"
           "wl-paste --type text --watch cliphist store"
           "wl-paste --type image --watch cliphist store"
         ]
