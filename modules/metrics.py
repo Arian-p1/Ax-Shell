@@ -1,5 +1,6 @@
 import json
 import logging
+import platform
 import subprocess
 import time
 
@@ -17,17 +18,19 @@ from fabric.widgets.scale import Scale
 from gi.repository import GLib
 
 import config.data as data
-from modules.upower.upower import UPowerManager
 import modules.icons as icons
+from modules.upower.upower import UPowerManager
 from services.network import NetworkClient
 
 logger = logging.getLogger(__name__)
+
 
 class MetricsProvider:
     """
     Class responsible for obtaining centralized CPU, memory, disk usage, and battery metrics.
     It updates periodically so that all widgets querying it display the same values.
     """
+
     def __init__(self):
         self.gpu = []
         self.cpu = 0.0
@@ -47,7 +50,9 @@ class MetricsProvider:
     def _update(self):
         self.cpu = psutil.cpu_percent(interval=0)
         self.mem = psutil.virtual_memory().percent
-        self.disk = [psutil.disk_usage(path).percent for path in data.BAR_METRICS_DISKS]
+        self.disk = [
+            psutil.disk_usage(path).percent for path in data.BAR_METRICS_DISKS
+        ]
 
         if not self._gpu_update_running:
             self._start_gpu_update_async()
@@ -58,9 +63,11 @@ class MetricsProvider:
             self.bat_charging = None
             self.bat_time = 0
         else:
-            self.bat_percent = battery['Percentage']
-            self.bat_charging = battery['State'] == 1
-            self.bat_time = battery['TimeToFull'] if self.bat_charging else battery['TimeToEmpty']
+            self.bat_percent = battery["Percentage"]
+            self.bat_charging = battery["State"] == 1
+            self.bat_time = (
+                battery["TimeToFull"] if self.bat_charging else battery["TimeToEmpty"]
+            )
 
         return True
 
@@ -72,6 +79,11 @@ class MetricsProvider:
 
     def _run_nvtop_in_thread(self):
         """Runs nvtop via subprocess in a separate GLib thread."""
+        if platform.machine() != "x86_64":
+            self.gpu = []
+            self._gpu_update_running = False
+            return
+
         output = None
         error_message = None
         try:
@@ -81,7 +93,9 @@ class MetricsProvider:
             error_message = "nvtop command not found."
             logger.warning(error_message)
         except subprocess.CalledProcessError as e:
-            error_message = f"nvtop failed with exit code {e.returncode}: {e.stderr.strip()}"
+            error_message = (
+                f"nvtop failed with exit code {e.returncode}: {e.stderr.strip()}"
+            )
             logger.error(error_message)
         except subprocess.TimeoutExpired:
             error_message = "nvtop command timed out."
@@ -132,6 +146,8 @@ class MetricsProvider:
         return (self.bat_percent, self.bat_charging, self.bat_time)
 
     def get_gpu_info(self):
+        if platform.machine() != "x86_64":
+            return []
         try:
             result = subprocess.check_output(["nvtop", "-s"], text=True, timeout=5)
             return json.loads(result)
@@ -151,16 +167,18 @@ class MetricsProvider:
             logger.error(f"Unexpected error during GPU init: {e}")
             return []
 
+
 shared_provider = MetricsProvider()
+
 
 class SingularMetric:
     def __init__(self, id, name, icon):
         self.usage = Scale(
             name=f"{id}-usage",
             value=0.25,
-            orientation='v',
+            orientation="v",
             inverted=True,
-            v_align='fill',
+            v_align="fill",
             v_expand=True,
         )
 
@@ -171,15 +189,16 @@ class SingularMetric:
 
         self.box = Box(
             name=f"{id}-box",
-            orientation='v',
+            orientation="v",
             spacing=8,
             children=[
                 self.usage,
                 self.label,
-            ]
+            ],
         )
 
         self.box.set_tooltip_markup(f"{icon} {name}")
+
 
 class Metrics(Box):
     def __init__(self, **kwargs):
@@ -192,27 +211,61 @@ class Metrics(Box):
             all_visible=True,
         )
 
-        visible = getattr(data, "METRICS_VISIBLE", {'cpu': True, 'ram': True, 'disk': True, 'gpu': True})
-        disks = [SingularMetric("disk", f"DISK ({path})" if len(data.BAR_METRICS_DISKS) != 1 else "DISK", icons.disk)
-                 for path in data.BAR_METRICS_DISKS] if visible.get('disk', True) else []
+        visible = getattr(
+            data, "METRICS_VISIBLE", {"cpu": True, "ram": True, "disk": True, "gpu": True}
+        )
+        disks = (
+            [
+                SingularMetric(
+                    "disk",
+                    f"DISK ({path})" if len(data.BAR_METRICS_DISKS) != 1 else "DISK",
+                    icons.disk,
+                )
+                for path in data.BAR_METRICS_DISKS
+            ]
+            if visible.get("disk", True)
+            else []
+        )
 
         gpu_info = shared_provider.get_gpu_info()
-        gpus = [SingularMetric(f"gpu", f"GPU ({v['device_name']})" if len(gpu_info) != 1 else "GPU", icons.gpu)
-                for v in gpu_info] if visible.get('gpu', True) else []
+        gpus = (
+            [
+                SingularMetric(
+                    f"gpu",
+                    f"GPU ({v['device_name']})" if len(gpu_info) != 1 else "GPU",
+                    icons.gpu,
+                )
+                for v in gpu_info
+            ]
+            if visible.get("gpu", True)
+            else []
+        )
 
-        self.cpu = SingularMetric("cpu", "CPU", icons.cpu) if visible.get('cpu', True) else None
-        self.ram = SingularMetric("ram", "RAM", icons.memory) if visible.get('ram', True) else None
+        self.cpu = (
+            SingularMetric("cpu", "CPU", icons.cpu) if visible.get("cpu", True) else None
+        )
+        self.ram = (
+            SingularMetric("ram", "RAM", icons.memory)
+            if visible.get("ram", True)
+            else None
+        )
         self.disk = disks
         self.gpu = gpus
 
         self.scales = []
-        if self.disk: self.scales.extend([v.box for v in self.disk])
-        if self.ram: self.scales.append(self.ram.box)
-        if self.cpu: self.scales.append(self.cpu.box)
-        if self.gpu: self.scales.extend([v.box for v in self.gpu])
+        if self.disk:
+            self.scales.extend([v.box for v in self.disk])
+        if self.ram:
+            self.scales.append(self.ram.box)
+        if self.cpu:
+            self.scales.append(self.cpu.box)
+        if self.gpu:
+            self.scales.extend([v.box for v in self.gpu])
 
-        if self.cpu: self.cpu.usage.set_sensitive(False)
-        if self.ram: self.ram.usage.set_sensitive(False)
+        if self.cpu:
+            self.cpu.usage.set_sensitive(False)
+        if self.ram:
+            self.ram.usage.set_sensitive(False)
         for disk in self.disk:
             disk.usage.set_sensitive(False)
         for gpu in self.gpu:
@@ -231,14 +284,13 @@ class Metrics(Box):
         if self.ram:
             self.ram.usage.value = mem / 100.0
         for i, disk in enumerate(self.disk):
-
             if i < len(disks):
                 disk.usage.value = disks[i] / 100.0
         for i, gpu in enumerate(self.gpu):
-
             if i < len(gpus):
                 gpu.usage.value = gpus[i] / 100.0
         return True
+
 
 class SingularMetricSmall:
     def __init__(self, id, name, icon):
@@ -274,30 +326,66 @@ class SingularMetricSmall:
         )
 
     def markup(self):
-        return f"{self.icon_markup} {self.name_markup}" if not data.VERTICAL else f"{self.icon_markup} {self.name_markup}: {self.level.get_label()}"
+        return (
+            f"{self.icon_markup} {self.name_markup}"
+            if not data.VERTICAL
+            else f"{self.icon_markup} {self.name_markup}: {self.level.get_label()}"
+        )
+
 
 class MetricsSmall(Button):
     def __init__(self, **kwargs):
         super().__init__(name="metrics-small", **kwargs)
 
         main_box = Box(
-
             spacing=0,
             orientation="h" if not data.VERTICAL else "v",
             visible=True,
             all_visible=True,
         )
 
-        visible = getattr(data, "METRICS_SMALL_VISIBLE", {'cpu': True, 'ram': True, 'disk': True, 'gpu': True})
-        disks = [SingularMetricSmall("disk", f"DISK ({path})" if len(data.BAR_METRICS_DISKS) != 1 else "DISK", icons.disk)
-                 for path in data.BAR_METRICS_DISKS] if visible.get('disk', True) else []
+        visible = getattr(
+            data,
+            "METRICS_SMALL_VISIBLE",
+            {"cpu": True, "ram": True, "disk": True, "gpu": True},
+        )
+        disks = (
+            [
+                SingularMetricSmall(
+                    "disk",
+                    f"DISK ({path})" if len(data.BAR_METRICS_DISKS) != 1 else "DISK",
+                    icons.disk,
+                )
+                for path in data.BAR_METRICS_DISKS
+            ]
+            if visible.get("disk", True)
+            else []
+        )
 
         gpu_info = shared_provider.get_gpu_info()
-        gpus = [SingularMetricSmall(f"gpu", f"GPU ({v['device_name']})" if len(gpu_info) != 1 else "GPU", icons.gpu)
-                for v in gpu_info] if visible.get('gpu', True) else []
+        gpus = (
+            [
+                SingularMetricSmall(
+                    f"gpu",
+                    f"GPU ({v['device_name']})" if len(gpu_info) != 1 else "GPU",
+                    icons.gpu,
+                )
+                for v in gpu_info
+            ]
+            if visible.get("gpu", True)
+            else []
+        )
 
-        self.cpu = SingularMetricSmall("cpu", "CPU", icons.cpu) if visible.get('cpu', True) else None
-        self.ram = SingularMetricSmall("ram", "RAM", icons.memory) if visible.get('ram', True) else None
+        self.cpu = (
+            SingularMetricSmall("cpu", "CPU", icons.cpu)
+            if visible.get("cpu", True)
+            else None
+        )
+        self.ram = (
+            SingularMetricSmall("ram", "RAM", icons.memory)
+            if visible.get("ram", True)
+            else None
+        )
         self.disk = disks
         self.gpu = gpus
 
@@ -334,8 +422,10 @@ class MetricsSmall(Button):
                 GLib.source_remove(self.hide_timer)
                 self.hide_timer = None
 
-            if self.cpu: self.cpu.revealer.set_reveal_child(True)
-            if self.ram: self.ram.revealer.set_reveal_child(True)
+            if self.cpu:
+                self.cpu.revealer.set_reveal_child(True)
+            if self.ram:
+                self.ram.revealer.set_reveal_child(True)
             for disk in self.disk:
                 disk.revealer.set_reveal_child(True)
             for gpu in self.gpu:
@@ -354,8 +444,10 @@ class MetricsSmall(Button):
 
     def hide_revealer(self):
         if not data.VERTICAL:
-            if self.cpu: self.cpu.revealer.set_reveal_child(False)
-            if self.ram: self.ram.revealer.set_reveal_child(False)
+            if self.cpu:
+                self.cpu.revealer.set_reveal_child(False)
+            if self.ram:
+                self.ram.revealer.set_reveal_child(False)
             for disk in self.disk:
                 disk.revealer.set_reveal_child(False)
             for gpu in self.gpu:
@@ -373,31 +465,37 @@ class MetricsSmall(Button):
             self.ram.circle.set_value(mem / 100.0)
             self.ram.level.set_label(self._format_percentage(int(mem)))
         for i, disk in enumerate(self.disk):
-
             if i < len(disks):
                 disk.circle.set_value(disks[i] / 100.0)
                 disk.level.set_label(self._format_percentage(int(disks[i])))
         for i, gpu in enumerate(self.gpu):
-
             if i < len(gpus):
                 gpu.circle.set_value(gpus[i] / 100.0)
                 gpu.level.set_label(self._format_percentage(int(gpus[i])))
 
         tooltip_metrics = []
-        if self.disk: tooltip_metrics.extend(self.disk)
-        if self.ram: tooltip_metrics.append(self.ram)
-        if self.cpu: tooltip_metrics.append(self.cpu)
-        if self.gpu: tooltip_metrics.extend(self.gpu)
-        self.set_tooltip_markup((" - " if not data.VERTICAL else "\n").join([v.markup() for v in tooltip_metrics]))
+        if self.disk:
+            tooltip_metrics.extend(self.disk)
+        if self.ram:
+            tooltip_metrics.append(self.ram)
+        if self.cpu:
+            tooltip_metrics.append(self.cpu)
+        if self.gpu:
+            tooltip_metrics.extend(self.gpu)
+        self.set_tooltip_markup(
+            (" - " if not data.VERTICAL else "\n").join(
+                [v.markup() for v in tooltip_metrics]
+            )
+        )
 
         return True
+
 
 class Battery(Button):
     def __init__(self, **kwargs):
         super().__init__(name="metrics-small", **kwargs)
 
         main_box = Box(
-
             spacing=0,
             orientation="h",
             visible=True,
@@ -442,7 +540,7 @@ class Battery(Button):
             on_changed=lambda f, v: self.update_battery,
             interval=1000,
             stream=False,
-            default_value=0
+            default_value=0,
         )
         self.batt_fabricator.changed.connect(self.update_battery)
         GLib.idle_add(self.update_battery, None, shared_provider.get_battery())
@@ -518,12 +616,18 @@ class Battery(Button):
             charging_status = f"{icons.bat_low} Low Battery - {time_status} left"
         elif charging == False:
             self.bat_icon.set_markup(icons.discharging)
-            charging_status = f"{icons.bat_discharging} Discharging - {time_status} left"
+            charging_status =
+                f"{icons.bat_discharging} Discharging - {time_status} left"
         else:
             self.bat_icon.set_markup(icons.battery)
             charging_status = "Battery"
 
-        self.set_tooltip_markup(f"{charging_status}" if not data.VERTICAL else f"{charging_status}: {percentage}%")
+        self.set_tooltip_markup(
+            f"{charging_status}"
+            if not data.VERTICAL
+            else f"{charging_status}: {percentage}%"
+        )
+
 
 class NetworkApplet(Button):
     def __init__(self, **kwargs):
@@ -537,8 +641,22 @@ class NetworkApplet(Button):
         self.downloading = False
         self.uploading = False
 
-        self.download_icon = Label(name="download-icon-label", markup=icons.download, v_align="center", h_align="center", h_expand=True, v_expand=True)
-        self.upload_icon = Label(name="upload-icon-label", markup=icons.upload, v_align="center", h_align="center", h_expand=True, v_expand=True)
+        self.download_icon = Label(
+            name="download-icon-label",
+            markup=icons.download,
+            v_align="center",
+            h_align="center",
+            h_expand=True,
+            v_expand=True,
+        )
+        self.upload_icon = Label(
+            name="upload-icon-label",
+            markup=icons.upload,
+            v_align="center",
+            h_align="center",
+            h_expand=True,
+            v_expand=True,
+        )
 
         self.download_box = Box(
             children=[self.download_icon, self.download_label],
@@ -548,8 +666,16 @@ class NetworkApplet(Button):
             children=[self.upload_label, self.upload_icon],
         )
 
-        self.download_revealer = Revealer(child=self.download_box, transition_type = "slide-right" if not data.VERTICAL else "slide-down", child_revealed=False)
-        self.upload_revealer = Revealer(child=self.upload_box, transition_type="slide-left" if not data.VERTICAL else "slide-up",child_revealed=False)
+        self.download_revealer = Revealer(
+            child=self.download_box,
+            transition_type="slide-right" if not data.VERTICAL else "slide-down",
+            child_revealed=False,
+        )
+        self.upload_revealer = Revealer(
+            child=self.upload_box,
+            transition_type="slide-left" if not data.VERTICAL else "slide-up",
+            child_revealed=False,
+        )
 
         self.children = Box(
             orientation="h" if not data.VERTICAL else "v",
@@ -573,15 +699,19 @@ class NetworkApplet(Button):
         current_time = time.time()
         elapsed = current_time - self.last_time
         current_counters = psutil.net_io_counters()
-        download_speed = (current_counters.bytes_recv - self.last_counters.bytes_recv) / elapsed
-        upload_speed = (current_counters.bytes_sent - self.last_counters.bytes_sent) / elapsed
+        download_speed = (
+            current_counters.bytes_recv - self.last_counters.bytes_recv
+        ) / elapsed
+        upload_speed = (
+            current_counters.bytes_sent - self.last_counters.bytes_sent
+        ) / elapsed
         download_str = self.format_speed(download_speed)
         upload_str = self.format_speed(upload_speed)
         self.download_label.set_markup(download_str)
         self.upload_label.set_markup(upload_str)
 
-        self.downloading = (download_speed >= 10e6)
-        self.uploading = (upload_speed >= 2e6)
+        self.downloading = download_speed >= 10e6
+        self.uploading = upload_speed >= 2e6
 
         if not self.is_mouse_over:
             if self.downloading:
@@ -614,7 +744,9 @@ class NetworkApplet(Button):
                 self.wifi_label.set_markup(icons.world_off)
 
             tooltip_base = "Ethernet Connection"
-            tooltip_vertical = f"SSID: Ethernet\nUpload: {upload_str}\nDownload: {download_str}"
+            tooltip_vertical = (
+                f"SSID: Ethernet\nUpload: {upload_str}\nDownload: {download_str}"
+            )
 
         elif self.network_client and self.network_client.wifi_device:
             if self.network_client.wifi_device.ssid != "Disconnected":
@@ -634,11 +766,15 @@ class NetworkApplet(Button):
             else:
                 self.wifi_label.set_markup(icons.world_off)
                 tooltip_base = "Disconnected"
-                tooltip_vertical = f"SSID: Disconnected\nUpload: {upload_str}\nDownload: {download_str}"
+                tooltip_vertical = (
+                    f"SSID: Disconnected\nUpload: {upload_str}\nDownload: {download_str}"
+                )
         else:
             self.wifi_label.set_markup(icons.world_off)
             tooltip_base = "Disconnected"
-            tooltip_vertical = f"SSID: Disconnected\nUpload: {upload_str}\nDownload: {download_str}"
+            tooltip_vertical = (
+                f"SSID: Disconnected\nUpload: {upload_str}\nDownload: {download_str}"
+            )
 
         if data.VERTICAL:
             self.set_tooltip_text(tooltip_vertical)
@@ -660,7 +796,6 @@ class NetworkApplet(Button):
     def on_mouse_enter(self, *_):
         self.is_mouse_over = True
         if not data.VERTICAL:
-
             self.download_revealer.set_reveal_child(True)
             self.upload_revealer.set_reveal_child(True)
         return
@@ -668,7 +803,6 @@ class NetworkApplet(Button):
     def on_mouse_leave(self, *_):
         self.is_mouse_over = False
         if not data.VERTICAL:
-
             self.download_revealer.set_reveal_child(self.downloading)
             self.upload_revealer.set_reveal_child(self.uploading)
 
