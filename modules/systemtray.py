@@ -54,7 +54,7 @@ class SystemTray(Box):
         has = len(self.get_children()) > 0
         super().set_visible(self.enabled and has)
 
-    def _get_item_pixbuf(self, item: Gray.Item) -> GdkPixbuf.Pixbuf:
+    def _get_item_pixbuf(self, item: "Gray.Item") -> GdkPixbuf.Pixbuf:
         try:
             pm = Gray.get_pixmap_for_pixmaps(item.get_icon_pixmaps(), self.pixel_size)
             if pm:
@@ -74,7 +74,7 @@ class SystemTray(Box):
                 "image-missing", self.pixel_size, Gtk.IconLookupFlags.FORCE_SIZE
             )
 
-    def _refresh_item_ui(self, identifier: str, item: Gray.Item, button: Gtk.Button):
+    def _refresh_item_ui(self, identifier: str, item: "Gray.Item", button: Gtk.Button):
         pixbuf = self._get_item_pixbuf(item)
         img = button.get_image()
         if isinstance(img, Gtk.Image):
@@ -138,7 +138,7 @@ class SystemTray(Box):
         btn.show_all()
         self._update_visibility()
 
-    def do_bake_item_button(self, item: Gray.Item) -> Gtk.Button:
+    def do_bake_item_button(self, item: "Gray.Item") -> Gtk.Button:
         btn = Gtk.Button()
         btn.connect("button-press-event", lambda b, e: self.on_button_click(b, item, e))
         img = Gtk.Image.new_from_pixbuf(self._get_item_pixbuf(item))
@@ -152,7 +152,7 @@ class SystemTray(Box):
             btn.set_tooltip_text(tip)
         return btn
 
-    def on_item_instance_removed(self, identifier: str, removed_item: Gray.Item):
+    def on_item_instance_removed(self, identifier: str, removed_item: "Gray.Item"):
         if self.items_by_id.get(identifier) is removed_item:
             btn = self.buttons_by_id.pop(identifier, None)
             self.items_by_id.pop(identifier, None)
@@ -161,7 +161,7 @@ class SystemTray(Box):
             self._update_visibility()
 
     def on_button_click(
-        self, button: Gtk.Button, item: Gray.Item, event: Gdk.EventButton
+        self, button: Gtk.Button, item: "Gray.Item", event: Gdk.EventButton
     ):
         if event.button == Gdk.BUTTON_PRIMARY:
             try:
